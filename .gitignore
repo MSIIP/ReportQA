@@ -1,0 +1,5 @@
+.vscode
+.codex
+__pycache__
+dev
+work_dirs

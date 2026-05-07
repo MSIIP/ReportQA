@@ -1,0 +1,48 @@
+name: reportqa
+description: Default Report QA generation config.
+languages:
+- zh
+paths:
+  raw_input: ../../../data/input.json
+  prompt_bundle: prompt_example_zh.yaml
+  knowledge_tree: knowledge_tree.json
+  output_dir: ../../../work_dirs/generate_qas
+defaults:
+  api:
+    base_url: https://your-openai-compatible-base-url/v1
+    model: model_name
+    env_key: OPENAI_API_KEY
+  step1_extract_reports:
+    task: both
+    max_workers: 20
+    save_batch_size: 5
+    max_retries: 3
+  step2_frequency_stats:
+    task: both
+    enable_embedding_cluster: false
+    embedding_model: ''
+    cluster_similarity_threshold: 0.9
+    embedding_device: ''
+  step3_map_to_tree:
+    task: both
+    include_evidence_span_in_prompt: true
+    max_workers: 32
+    save_batch_size: 5
+    max_retries: 5
+  step4_generate_qa:
+    task: both
+    gen_base: true
+    gen_hier: true
+    gen_neg: true
+    num_distractors: 3
+    neg_max: 0
+strategy:
+  negative_fallback_leaf_nodes:
+    finding: []
+    diagnosis: []
+compatibility:
+  input_format: legacy_case_json_array
+  step1_output_format: legacy_step1_jsonl
+  step1_stats_format: legacy_frequency_stats_json
+  step2_output_format: legacy_step2_jsonl
+  step3_output_format: legacy_step3_jsonl

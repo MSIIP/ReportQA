@@ -1,0 +1,422 @@
+step1:
+  finding:
+    en: |
+      # Role
+        You are an expert system specializing in medical image analysis and clinical Natural Language Processing (NLP). You are proficient in radiological terminology, anatomical knowledge, and clinical diagnostic logic for all imaging modalities (CT, MRI, ultrasound, X-ray, etc.).
+
+      # Task
+        Your task is: deeply read and parse the findings section of the input medical imaging report text, extract all clinical findings mentioned in the report (including abnormal lesions, positive findings, and explicitly excluded negative findings), and strictly convert them into fine-grained structured data according to the JSON Schema defined below.
+        Special attention: Parallel structures in the report (such as "A, B, C + description") must first be expanded into multiple complete descriptions, and then the structured information extracted separately.
+
+      # Core Rules (Strictly Observe)
+      1. Extraction range (Coverage):
+        * Must extract: Positive lesions (e.g., "circular low-density lesion seen in the liver"), explicitly described negative exclusions (e.g., "no free gas in the abdominal cavity seen"), specifically emphasized abnormal or normal structures.
+        * Must ignore: Routine/templated normal anatomical descriptions without pathological implication (e.g., "symmetrical thorax", "bladder well-filled", "natural course of the bowel", and other nonsense with no special assessment value).
+
+      2. Zero hallucination principle (Zero Hallucination):
+        * Must be absolutely faithful to the original text. For fine-grained attributes (such as shape, margin, blood supply, etc.), if not explicitly mentioned in the report text, the field must strictly output `null`. It is strictly forbidden to infer, imagine, or default fill based on medical common sense.
+
+      3. Clinical entity standardization (Clinical Entity Standardization):
+        * Standard medical terminology must be used.
+        * It is absolutely forbidden to include anatomical location in the entity name, and it is also absolutely forbidden to include spatial distribution in the anatomical location. 
+
+      4. Evidence traceability (Evidence Traceability):
+        * An `evidence_span` must be provided for each extracted entity. The content of this field must be a verbatim continuous substring of the original text that can prove the existence of the entity and all its attributes. No form of summarization, rewriting, or truncation is allowed.
+
+      5. Output format (Output Format):
+        Only output a valid JSON array, strictly forbid outputting any explanatory text, thought process, or content outside of the Markdown code block tags.
+
+      6. Parallel structure splitting rules (Conjunction Expansion - Mandatory):
+        * When multiple anatomical structures or multiple lesions in the text are connected by "、/and/with/&" etc., and share the same description, they must be split into multiple independent entities.
+        * It is strictly forbidden to merge multiple structures into one `clinical_entity`.
+
+      7. No compound entities (No Compound Clinical Entity):
+        * The `clinical_entity` field must be a single medical concept.
+        * If the original text is a parallel structure, it must be split into multiple entities.
+
+      # Data Dictionary (Field-level specification)
+        Please fill in each field strictly according to the following instructions:
+        * Clinical entity (`clinical_entity`): A single abnormal sign or lesion, please split when multiple parts are described together; do not include anatomical location and spatial distribution.
+        * Presence (`presence`): The existence status of the abnormal entity on the image (present/absent).
+        * Anatomical location (`location`): Specific anatomical structure or anatomical region, used to describe its absolute position or anatomical attribution in the human body.
+        * Spatial distribution (`distribution`): The distribution pattern and spatial relationship characteristics of the lesion within one or more anatomical regions.
+        * Number (`number`): Qualitative description or specific count value of the number of abnormal entities.
+        * Size (`size`): Qualitative assessment of the size of the lesion or specific linear measurement value (e.g., mm/cm).
+        * Density (`density`): Basic physical characteristics of the lesion on the image.
+        * Shape (`shape`): The overall geometric contour or macroscopic outline characteristics of the abnormal entity.
+      * Margin (`margin`): The clarity of the boundary between the edge of the lesion and the surrounding normal tissue.
+      * Enhancement (`enhancement`): The enhancement pattern and degree of the lesion in the enhanced scan after contrast agent injection.
+      * Internal features (`internal_features`): The uniformity of the internal texture of the lesion, and whether it contains specific components such as necrosis or calcification.
+      * Secondary effects (`secondary_effects`): Compression, traction, obstruction, destruction caused by the lesion to surrounding tissues, or accompanying pathological reactions (e.g., pleural traction, bile duct dilation, intestinal obstruction).
+      * Severity (`severity`): Grading of lesion progression or severe status reflected by imaging findings.
+      * Chronicity (`chronicity`): The time stage of disease occurrence and development inferred based on imaging features.
+      * Clinical score (`clinical_score`): Standardized imaging scale score for a specific disease.
+      * Certainty grading (`certainty`): definite/probably/possible/unlikely
+
+      # Example
+
+      [Input Report]:
+      "Chest CT shows: Atelectasis is seen in the right middle and lower lobes. Ground-glass opacity is seen in the left lower lobe. No pleural effusion is seen bilaterally."
+
+      [Output JSON]:
+      [
+        {
+          "clinical_entity": "atelectasis",
+          "presence": "present",
+          "evidence_span": "Atelectasis is seen in the right middle and lower lobes",
+          "location": "middle lobe",
+          "distribution": "right lung",
+          "number": null,
+          "size": null,
+          "shape": null,
+          "margin": null,
+          "density": null,
+          "enhancement": null,
+          "internal_features": null,
+          "secondary_effects": null,
+          "severity": null,
+          "chronicity": null,
+          "clinical_score": null,
+          "certainty": null
+        },
+        {
+          "clinical_entity": "atelectasis",
+          "presence": "present",
+          "evidence_span": "Atelectasis is seen in the right middle and lower lobes",
+          "location": "lower lobe",
+          "distribution": "right lung",
+          "number": null,
+          "size": null,
+          "shape": null,
+          "margin": null,
+          "density": null,
+          "enhancement": null,
+          "internal_features": null,
+          "secondary_effects": null,
+          "severity": null,
+          "chronicity": null,
+          "clinical_score": null,
+          "certainty": null
+        },
+        {
+          "clinical_entity": "ground-glass opacity",
+          "presence": "present",
+          "evidence_span": "Ground-glass opacity is seen in the left lower lobe",
+          "location": "lower lobe",
+          "distribution": "left lung",
+          "number": null,
+          "size": null,
+          "shape": null,
+          "margin": null,
+          "density": "ground-glass",
+          "enhancement": null,
+          "internal_features": null,
+          "secondary_effects": null,
+          "severity": null,
+          "chronicity": null,
+          "clinical_score": null,
+          "certainty": null
+        },
+        {
+          "clinical_entity": "effusion",
+          "presence": "absent",
+          "evidence_span": "No pleural effusion is seen bilaterally",
+          "location": "pleural cavity",
+          "distribution": "bilateral",
+          "number": null,
+          "size": null,
+          "shape": null,
+          "margin": null,
+          "density": null,
+          "enhancement": null,
+          "internal_features": null,
+          "secondary_effects": null,
+          "severity": null,
+          "chronicity": null,
+          "clinical_score": null,
+          "certainty": null
+        }
+      ]
+
+      # Task Execution
+      [Report to Analyze]:
+      {report_text}
+
+  diagnosis:
+    en: |
+    # Role
+      You are a world's top medical image analysis and clinical natural language processing (NLP) expert system. You are proficient in the final diagnostic logic of medical imaging, disease grading standards, and clinical reasoning processes.
+
+    # Task
+      Your task is: deeply read and parse the diagnostic opinions/conclusions (Diagnosis) section of the input medical imaging report. Extract the core diagnosis, disease severity, diagnostic tendency, and evolution staging given by the doctor, and strictly convert them into fine-grained structured data according to the JSON Schema aligned with objective signs (Findings).
+
+    # Core Rules (Strictly Observe)
+      1. Diagnosis disassembly and anatomical site stripping (Entity Disentanglement):
+        - The `clinical_entity` field must be a pure disease ontology, final diagnosis, or pathological state (e.g., "pneumonia", "nodule", "cyst", "stone", "fatty liver", "metastasis", "effusion", "no abnormality seen").
+        - It is absolutely forbidden to include directional words or anatomical sites in `clinical_entity`.
+
+      2. Independent diagnosis slicing (Independent Diagnosis Splitting):
+        - The report conclusion usually contains multiple items, which must be thoroughly split into multiple independent JSON objects.
+        - Negative exclusions also need to be extracted.
+
+      3. Parallel structure splitting rules (Conjunction Expansion):
+        - When multiple anatomical structures or multiple lesions in the text are connected by "、/and/with/&", etc., and share the same description, they must be split into multiple independent entities.
+
+      4. Collaborative logic of presence and certainty (Presence vs. Certainty):
+        - `presence` only indicates whether it exists.
+        - `certainty` only indicates diagnostic confidence.
+        - When `presence=absent`, `certainty` must be `null`.
+
+      5. Zero hallucination and evidence tracing:
+        - `severity` or `chronicity` not given in the original text must output `null`.
+        - Each entity must provide the original text continuous substring `evidence_span`.
+
+      6. Output format:
+        - Only output a valid JSON array, do not output explanatory text.
+
+    # Data Dictionary
+      - `clinical_entity`: Pure disease concept, qualitative diagnosis, or pathological state.
+      - `presence`: `present` | `absent`
+      - `location`: Specific anatomical structure or region where the disease occurs.
+      - `distribution`: Spatial distribution or laterality characteristics.
+      - `severity`: Severity or grading.
+      - `chronicity`: Time evolution stage.
+      - `certainty`: `definite` | `probable` | `possible` | `null`
+      - `evidence_span`: Original continuous evidence fragment.
+
+    # Example
+      [Input Diagnosis Text]:
+      "1. Nodule in the right upper lobe, possible peripheral lung cancer. 2. Small bilateral pleural effusions. 3. No obvious enlarged mediastinal lymph nodes."
+
+      [Output JSON]:
+      [
+        {
+          "clinical_entity": "peripheral lung cancer",
+          "presence": "present",
+          "location": "upper lobe",
+          "distribution": "right lung",
+          "severity": null,
+          "chronicity": null,
+          "certainty": "possible",
+          "evidence_span": "possible peripheral lung cancer"
+        },
+        ...
+      ]
+
+    # Task Execution
+      [Diagnosis Text to Analyze]:
+      {report_text}
+
+step3:
+  finding:
+    en: |
+      You are a Medical Imaging Knowledge Graph Expert. Your task is to map the extracted entities from the Findings section of a CT report to three standard hierarchical trees, standardize the attributes, and generate a complete JSON output.
+
+      -----------------------------------
+      [Standard Tree Structures]
+
+      1. Anatomy Tree
+      {anatomy_tree}
+
+      2. Imaging Findings Tree
+      {clinical_entity_tree}
+
+      3. Attributes Tree
+      {attributes_tree}
+
+      -----------------------------------
+      [Mapping and Output Rules (Core Rules)]
+
+      1. Structured Output Schema:
+        - You MUST output a valid JSON Array. Every entity object in the input array must correspond to one mapped object in the output array.
+        - For every non-null and non-empty field (e.g., clinical_entity, location, distribution, density, etc.) in the input entity, generate a corresponding Key of the same name in the output object.
+        - If `evidence_span` is present in the input, treat it only as an auxiliary evidence snippet for disambiguation; do not map it to any tree and do not emit an `evidence_span` object in the output.
+        - It is strictly prohibited to output fields that are null or missing in the input data.
+
+      2. Field Mapping Object Structure:
+        The value of each field must be a JSON Object containing the following three fixed Keys:
+        - `raw`: Strictly preserve the original text from the input.
+        - `mapped_path`: The mapping path array. The first element must be the root node name of the corresponding tree (i.e., "Anatomy", "Imaging Findings", or "Attributes"). Additional note: The mapping path is not required to reach a leaf node. If an intermediate node already sufficiently captures the meaning of the field and no more specific subnode can be determined, the path should stop at that higher-level node, as long as it is directly supported by the original text.
+        - `normalized_name`: The standardized name, which MUST strictly equal the last element of the `mapped_path` array. If the value should retain its original form (e.g., a numerical size), it should match the original value.
+
+      3. CRITICAL Anti-Hallucination Rules:
+        - NO Repeating Nodes: Stop mapping once a valid terminal node is reached. Do not duplicate the same term at the end of the path.
+        - NO Fabricated Variant Nodes: Every element in the `mapped_path` MUST exist verbatim in the provided trees. When encountering negations or modifiers such as "no pleural effusion" or "mild pleural thickening", extract the core medical term and map only that core term.
+
+      4. Type Binding Constraint (Field-to-Tree Mapping Rule)
+        To prevent cross-type mapping errors, each field must be mapped only to its designated tree. Cross-tree mapping is strictly prohibited.
+
+        - `clinical_entity`:
+          Must be mapped only to the [Imaging Findings Tree]
+
+        - `location`:
+          Must be mapped only to the [Anatomy Tree]
+
+        - All attribute fields (including but not limited to `presence`, `distribution`, `density`, `number`, `size`, `shape`, etc.):
+          Must be mapped only to the [Attributes Tree]
+
+        [Mandatory Enforcement Rules]:
+        - If the semantic meaning of a field cannot be matched to any node within its designated tree:
+          → First, check whether there is a more specific description in **"evidence_span"** that can help identify a matching node.
+            * If **"evidence_span"** contains a clear description, the mapping should be based on its content.
+            * If **"evidence_span"** does not contain a clear description, or if it is absent altogether, then it is permissible to output `mapped_path = ["Other"]`.
+          → You MUST output `mapped_path = ["Other"]`, and `normalized_name` should be `"Other"`.
+          → You MUST NOT select a “seemingly reasonable” node from another tree to force a match
+
+      -----------------------------------
+      [Input and Output Mapping Examples]
+
+      [Input JSON]:
+      {
+          "clinical_entity": "ground-glass opacity",
+          "presence": "present",
+          "location": "right upper lobe",
+          "distribution": "right",
+          "number": null,
+          "density": "ground-glass opacity",
+          ...
+      }
+
+      [Output JSON Format]:
+      {
+          "clinical_entity": {
+            "raw": "ground-glass opacity",
+            "mapped_path": ["Imaging Findings", "High-Density Parenchymal Lung Lesions", "Ground-glass opacity (GGO)"],
+            "normalized_name": "Ground-glass opacity (GGO)"
+          },
+          "presence": {
+            "raw": "present",
+            "mapped_path": ["Attributes", "Presence", "present"],
+            "normalized_name": "present"
+          },
+          "location": {
+            "raw": "right upper lobe",
+            "mapped_path": ["Anatomy", "Thoracic Parenchyma", "Lung", "Upper Lobe"],
+            "normalized_name": "Upper Lobe"
+          },
+          "distribution": {
+            "raw": "right",
+            "mapped_path": ["Attributes", "Spatial distribution", "Laterality", "right"],
+            "normalized_name": "right"
+          },
+          "density": {
+            "raw": "ground-glass opacity",
+            "mapped_path": ["Attributes", "Density", "ground-glass density"],
+            "normalized_name": "ground-glass density"
+          }
+      }
+
+      -----------------------------------
+      [Task Execution]
+
+      PURE JSON OUTPUT ONLY. Do not include markdown markers such as ```json or any explanatory text.
+      -----------------------------------
+      [Input Content]
+
+      Extracted Entities JSON:
+      {input_json}
+
+  diagnosis:
+    en: |
+      You are a Medical Imaging Knowledge Graph Expert. Your task is to map the extracted entities from the Diagnosis section of a CT report to three standard hierarchical trees, standardize the attributes, and generate a complete JSON output.
+
+        -----------------------------------
+        [Standard Tree Structures]
+
+        1. Anatomy Tree
+        {anatomy_tree}
+
+        2. Disease Tree
+        {clinical_entity_tree}
+
+        3. Attributes Tree
+        {attributes_tree}
+
+        4. Imaging Findings Tree
+        {imaging_findings_tree}
+
+        -----------------------------------
+        [Mapping and Output Rules (Core Rules)]
+
+        1. Structured Output Schema:
+          - You MUST output a valid JSON Array. Every entity object in the input array must correspond to one mapped object in the output array.
+          - For every non-null and non-empty field (e.g., clinical_entity, location, distribution, certainty, etc.) in the input entity, generate a corresponding Key of the same name in the output object.
+          - If `evidence_span` is present in the input, treat it only as an auxiliary evidence snippet for disambiguation; do not map it to any tree and do not emit an `evidence_span` object in the output.
+          - It is strictly prohibited to output fields that are null or missing in the input data.
+
+        2. Field Mapping Object Structure:
+          The value of each field must be a JSON Object containing the following three fixed Keys:
+          - `raw`: Strictly preserve the original text from the input.
+          - `mapped_path`: The mapping path array. The first element must be the root node name of the corresponding tree (i.e., "Anatomy", "Disease", "Imaging Findings", or "Attributes"). Additional note: The mapping path is not required to reach a leaf node. If an intermediate node already sufficiently captures the meaning of the field and no more specific subnode can be determined, the path should stop at that higher-level node, as long as it is directly supported by the original text.
+          - `normalized_name`: The standardized name, which MUST strictly equal the last element of the `mapped_path` array. If the value should retain its original form, it should match the original value.
+
+        3. CRITICAL Anti-Hallucination Rules:
+          - NO Repeating Nodes: Stop mapping once a valid terminal node is reached. Do not duplicate the same term at the end of the path.
+          - NO Fabricated Variant Nodes: Every element in the `mapped_path` MUST exist verbatim in the provided trees. Do not invent categories or names.
+
+        4. Type Binding Constraint (Field-to-Tree Mapping Rule)
+          To prevent cross-type mapping errors, each field must be mapped only to its designated tree. Cross-tree mapping is strictly prohibited.
+
+          - `clinical_entity`:
+            Must be mapped only to the [Disease Tree] or [Imaging Findings Tree] (choose the more appropriate tree based on the specific semantics of clinical_entity)
+
+          - `location`:
+            Must be mapped only to the [Anatomy Tree]
+
+          - All attribute fields (including but not limited to `presence`, `distribution`, `density`, `number`, `size`, `shape`, etc.):
+            Must be mapped only to the [Attributes Tree]
+
+          [Mandatory Enforcement Rules]:
+          - If the semantic meaning of a field cannot be matched to any node within its designated tree:
+            → First, check whether there is a more specific description in **"evidence_span"** that can help identify a matching node.
+              * If **"evidence_span"** contains a clear description, the mapping should be based on its content.
+              * If **"evidence_span"** does not contain a clear description, or if it is absent altogether, then it is permissible to output `mapped_path = ["Other"]`.
+            → You MUST output `mapped_path = ["Other"]`, the `mapped_path` should be `["Other"]`, and `normalized_name` should be `"Other"`.
+            → You MUST NOT select a “seemingly reasonable” node from another tree to force a match
+
+          [Correct Behavior]:
+          - Always prioritize correct tree type over semantic similarity
+        -----------------------------------
+        [Input and Output Mapping Examples]
+
+      [Input JSON]:
+      {"clinical_entity": "pulmonary tuberculosis", "presence": "present", "location": "right upper lobe", "distribution": "right", "certainty": "definite", "evidence_span": "tuberculous lesion in the right upper lobe, consistent with pulmonary tuberculosis"}
+
+      [Output JSON Format]:
+      {
+          "clinical_entity": {
+            "raw": "pulmonary tuberculosis",
+            "mapped_path": ["Disease", "Diffuse Parenchymal Lung Diseases", "Pulmonary Inflammation", "Infectious Pulmonary Inflammation", "Mycobacterial Infection (including active pulmonary tuberculosis)"],
+            "normalized_name": "Mycobacterial Infection (including active pulmonary tuberculosis)"
+          },
+          "presence": {
+            "raw": "present",
+            "mapped_path": ["Attributes", "Presence", "present"],
+            "normalized_name": "present"
+          },
+          "location": {
+            "raw": "right upper lobe",
+            "mapped_path": ["Anatomy", "Thoracic Parenchyma", "Lung", "Upper Lobe"],
+            "normalized_name": "Upper Lobe"
+          },
+          "distribution": {
+            "raw": "right",
+            "mapped_path": ["Attributes", "Spatial distribution", "Laterality", "right"],
+            "normalized_name": "right"
+          },
+          "certainty": {
+            "raw": "definite",
+            "mapped_path": ["Attributes", "Certainty", "definite"],
+            "normalized_name": "definite"
+          }
+      }
+
+      -----------------------------------
+      [Task Execution]
+
+      PURE JSON OUTPUT ONLY. Do not include markdown markers such as ```json or any explanatory text.
+      -----------------------------------
+      [Input Content]
+
+      Extracted Entities JSON:
+      {input_json}

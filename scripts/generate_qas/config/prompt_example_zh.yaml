@@ -1,0 +1,393 @@
+step1:
+  finding:
+    zh: |
+      # Role
+
+      你是一个医学影像分析与临床自然语言处理（NLP）专家系统。你精通所有影像学模态（CT、MRI、超声、X光等）的放射学专业术语、解剖学知识与临床诊断逻辑。
+
+      # Task
+
+      你的任务是：深度阅读并解析输入的医学影像学报告文本的发现部分，提取出报告中提及的所有临床发现（包括异常病变、阳性发现以及被明确排除的阴性发现），并严格按照下方定义的 JSON Schema 转化为细粒度的结构化数据。
+
+      特别注意：报告中的并列结构（如“A、B、C + 描述”）必须先展开为多个完整描述，再分别提取结构化信息。
+
+      # Core Rules (严格遵守)
+
+      1. 提取范围 (Coverage)：
+         * 必须提取：阳性病灶（如“可见肝脏类圆形低密度灶”）、明确描述的阴性排除（如“未见腹腔游离气体”）、被特意强调的异常或正常结构。
+         * 必须忽略：无病理暗示的常规/模板化正常解剖描述（如“胸廓对称”、“膀胱充盈良好”、“肠管走形自然”等无特殊评估价值的废话）。
+
+      2. 零幻觉原则 (Zero Hallucination)：
+         * 必须绝对忠于原文。对于细粒度属性（如形态、边缘、血供等），如果报告文本中未明确提及，该字段必须严格输出 `null`。严禁基于医学常识自行推理、脑补或默认填充。
+
+      3. 实体命名规范 (Clinical Entity Standardization)：
+         * 必须使用标准的医学术语。
+         * 绝对禁止将解剖位置包含在实体名称中，也绝对禁止将空间分布包含在解剖定位中。
+
+      4. 证据追溯 (Evidence Traceability)
+         * 必须为每个提取的实体提供 `evidence_span`。该字段的内容必须是能够证明该实体及其全部属性存在的、一字不差的原文连续子串。不允许任何形式的概括、改写或截断。
+
+      5. 输出格式 (Output Format)：
+         * 只能输出一个合法的 JSON 数组 (Array)，严禁输出任何解释性文本、思考过程或 Markdown 代码块标记之外的内容。
+
+      6. 并列结构拆分规则 (Conjunction Expansion - 强制执行)：
+         * 当文本中多个解剖结构或多个病灶以“、/及/和/与”等连接，并共享同一个描述时，必须拆分为多个独立实体。
+         * 严禁将多个结构合并为一个 clinical_entity。
+
+      7. 禁止复合实体 (No Compound Clinical Entity)：
+         * clinical_entity 字段必须为单一医学概念。
+         * 如原文为并列结构，必须拆分为多个实体。
+         * 示例：若原文为“肝脏及双侧肾脏见多发囊肿”，不得提取为一个复合实体。必须拆分为两个独立实体。
+
+      # Data Dictionary (字段级规范)
+
+      请严格按照以下说明填充每个字段：
+
+      * 临床实体(clinical_entity）：单一的异常征象或病灶，多部位共同描述时请拆分；不要包含解剖位置和空间分布
+      * 存在性 (presence)：异常实体在影像上的存在状态 (present/absent)
+      * 解剖定位（location）：具体解剖结构或解剖区域，用于描述其在人体中的绝对位置或解剖归属
+      * 空间分布 (distribution)：病灶在一个或多个解剖区域内的分布模式和空间关系特征
+      * 数量 (number)：异常实体的数目定性描述或具体计数值
+      * 尺度 (size)：病灶的大小定性评估或具体的径线测量数值（如mm/cm）
+      * 密度 (density)：病灶在影像上的基础物理特征
+      * 形态 (shape)：异常实体的整体几何外形或宏观轮廓特征
+      * 边界 (margin)：病灶边缘与周围正常组织之间的界限清晰度
+      * 强化表现 (enhancement)：注入造影剂后，病灶在增强扫描中的强化模式与程度
+      * 内部特征 (internal_features)：病灶内部质地的均匀度，以及是否包含坏死、钙化等特定成分
+      * 继发改变 (secondary_effects)：病灶对周围组织造成的压迫、牵拉、阻塞、破坏或伴随的病理反应（如胸膜牵拉、胆管扩张、肠管梗阻）
+      * 严重程度 (severity)：影像表现所反映的病变进展或严重状态分级
+      * 演变分期 (chronicity)：基于影像学特征推断的疾病发生与发展的时间阶段
+      * 临床评分 (clinical_score)：针对特定疾病的标准化影像量表评分
+      * 确定性分级（certainty）：definite/probably/possible/unlikely
+
+      # Example
+
+      【Input Report】:
+      "头颅平扫CT示：右侧基底节区可见一团片状高密度影，最大截面约 3.2cm×4.5cm，边缘模糊，密度不均。病灶周围可见不规则低密度水肿带，右侧侧脑室受压变窄，中线结构向左侧偏移约 0.5cm。双侧大脑半球未见明显低密度缺血灶或脑梗死。脑沟、脑池未见异常增宽。"
+
+      【Output JSON】:
+      [
+        {
+          "clinical_entity": "高密度影",
+          "presence": "present",
+          "evidence_span": "右侧基底节区可见一团片状高密度影",
+          "location": "基底节区",
+          "distribution": "右侧",
+          "number": "1",
+          "size": "约3.2cm×4.5cm",
+          "shape": "团片状",
+          "margin": "边缘模糊",
+          "density": "高密度",
+          "enhancement": null,
+          "internal_features": "密度不均",
+          "secondary_effects": "病灶周围伴随不规则低密度水肿带，右侧侧脑室受压变窄，中线结构左移约0.5cm",
+          "severity": null,
+          "chronicity": null,
+          "clinical_score": null,
+          "certainty": null
+        }
+      ]
+
+      # Task Execution
+
+      【Report to Analyze】:
+      {report_text}
+  diagnosis:
+    zh: |
+      # Role
+      你是一个世界顶尖的医学影像分析与临床自然语言处理（NLP）专家系统。你精通医疗影像学的最终诊断逻辑、疾病分级标准以及临床推理过程。
+
+      # Task
+      你的任务是：深度阅读并解析输入的医学影像学报告诊断意见/结论（Diagnosis）部分。提取出医生给出的核心诊断、疾病严重程度、确诊倾向性以及演变分期，并严格按照与客观征象（Findings）对齐的 JSON Schema 转化为细粒度的结构化数据。
+
+      # Core Rules (严格遵守)
+      1. 诊断拆解与部位剥离 (Entity Disentanglement)：
+        - `clinical_entity` 字段必须是纯粹的疾病本体、最终诊断或病理状态。
+        - 绝对禁止在 `clinical_entity` 中包含方位词或解剖部位。
+
+      2. 独立诊断切分 (Independent Diagnosis Splitting)：
+        - 报告结论通常包含多条，必须将其彻底拆分为多个独立的 JSON 对象。
+        - 阴性排除同样需要提取。
+
+      3. 并列结构拆分规则 (Conjunction Expansion)：
+        - 当文本中多个解剖结构或多个病灶以“、/及/和/与”等连接，并共享同一个描述时，必须拆分为多个独立实体。
+
+      4. 存在性与确定性的协同逻辑 (Presence vs. Certainty)：
+        - `presence` 只表示是否存在。
+        - `certainty` 只表示诊断信心。
+        - 当 `presence=absent` 时，`certainty` 必须为 `null`。
+
+      5. 零幻觉与证据追溯：
+        - 原文未给出的 `severity` 或 `chronicity` 必须输出 `null`。
+        - 每个实体都必须给出原文连续子串 `evidence_span`。
+
+      6. 输出格式：
+        - 只能输出合法 JSON 数组，不要输出解释性文字。
+
+      # Data Dictionary
+      - `clinical_entity`: 纯粹的疾病概念、定性诊断或病理状态。
+      - `presence`: `present` | `absent`
+      - `location`: 疾病发生的具体解剖结构或区域。
+      - `distribution`: 空间分布或侧性特征。
+      - `severity`: 严重程度或分级。
+      - `chronicity`: 时间演变阶段。
+      - `certainty`: `definite` | `probable` | `possible` | `null`
+      - `evidence_span`: 原文连续证据片段。
+
+      # Example
+      【Input Diagnosis Text】:
+      "1. 右侧大脑中动脉供血区大面积急性脑梗死，考虑合并轻度渗血可能。2. 颅骨未见明显骨折征象。"
+
+      【Output JSON】:
+      [
+        {
+          "clinical_entity": "脑梗死",
+          "presence": "present",
+          "location": "大脑中动脉供血区",
+          "distribution": "右侧",
+          "severity": "大面积",
+          "chronicity": "急性",
+          "certainty": "definite",
+          "evidence_span": "右侧大脑中动脉供血区大面积急性脑梗死"
+        },
+        {
+          "clinical_entity": "渗血",
+          "presence": "present",
+          "location": "大脑中动脉供血区",
+          "distribution": "右侧",
+          "severity": "轻度",
+          "chronicity": null,
+          "certainty": "possible",
+          "evidence_span": "考虑合并轻度渗血可能"
+        },
+        {
+          "clinical_entity": "骨折",
+          "presence": "absent",
+          "location": "颅骨",
+          "distribution": null,
+          "severity": null,
+          "chronicity": null,
+          "certainty": null,
+          "evidence_span": "颅骨未见明显骨折征象"
+        }
+      ]
+
+      # Task Execution
+      【Diagnosis Text to Analyze】:
+      {report_text}
+
+step3:
+  finding:
+    zh: |
+      你是医学影像知识图谱专家。你的任务是将给定的胸部 CT 报告 Finding 部分中已抽取的实体，映射到标准三棵树，并标准化属性，同时生成完整的 JSON 输出。
+
+      -----------------------------------
+      【标准树结构】
+
+      1. 解剖结构树 (Chest + Abdomen + Pelvis Anatomy Tree)
+      {anatomy_tree}
+
+      2. 影像征象树 (Chest + Abdomen + Pelvis CT Findings Tree)
+      {clinical_entity_tree}
+
+      3. 属性树 (Attributes Tree)
+      {attributes_tree}
+
+      -----------------------------------
+      【映射与输出规则 (Core Rules)】
+
+      1. 结构化输出规范 (Schema)：
+        - 必须输出一个合法的 JSON 数组 (Array)。输入数组中的每一个实体对象，对应输出数组中的一个映射对象。
+        - 针对输入实体中每一个非 null 且非空的字段（如 clinical_entity, location, distribution, density 等），在输出对象中生成一个同名的 Key。
+        - 若输入中包含 `evidence_span`，它只是辅助理解的原文证据片段，仅用于消歧；不要对它做树映射，也不要在输出中生成 `evidence_span` 对象。
+        - 严禁输出输入数据中为 null 或缺失的字段（不要生成空对象）。
+
+      2. 字段映射对象结构：
+        每个字段的值必须是一个包含以下三个固定 Key 的 JSON Object：
+        - `raw`: 完整保留输入时的原词表述。
+        - `mapped_path`: 映射路径数组。数组的第一个元素必须是所属树的根节点名称（即 "解剖结构"、"影像征象" 或 "属性"），后续元素为从根节点到最符合子节点的完整层级路径。
+          补充说明：映射路径不要求必须到达叶子节点；当某一中间节点已能充分表达该字段语义，且无法区分更具体子节点，应停在可被原文直接支持的上位节点。
+        - `normalized_name`: 标准化名称，必须严格等于 `mapped_path` 数组的最后一个元素。如果属于保留原值的情况（如具体尺寸），则与原值一致。
+
+      3. 强校验防幻觉规则 (CRITICAL Anti-Hallucination)：
+        - 禁止重复节点：路径走到合法节点即停止，绝不可重复拼写同一词汇。
+        - 禁止捏造变体节点：`mapped_path` 内的每一个元素必须一字不差地存在于给定标准树中。遇到带有否定词/程度词的 raw text（如“无胸腔积液”、“轻度胸膜增厚”），必须提取核心词映射到树中已有节点，严禁自创后缀/前缀。
+
+      4. 字段-树强约束规则（Type Binding Constraint）：
+      为避免跨类型错误映射，每个字段只能映射到指定的树中，严禁跨树映射：
+      - `clinical_entity`：
+        只能映射到【影像征象树】
+      - `location`：
+        只能映射到【解剖结构树】
+      - 所有属性字段（包括但不限于 `presence`, `distribution`, `density`, `number`, `size`, `shape` 等）：
+        只能映射到【属性树】
+
+
+      【强制执行规则】：
+      - 若某字段的语义无法在指定树中找到匹配节点：
+        → 首先检查"evidence_span"中是否有更明确的描述可以帮助找到匹配节点
+         - 如果 evidence_span 中有明确描述，则根据 evidence_span 的内容进行映射。
+         - 如果 evidence_span 中没有明确描述，或者根本没有 evidence_span，那么才允许输出 `mapped_path = ["Other"]`。
+        → 必须输出 `mapped_path = ["Other"]`，此时 `normalized_name` 输出 `"Other"`。
+        → 严禁为了匹配而跨树选择“看起来合理”的节点
+
+      【正确行为】：
+      - 优先保证“树类型正确”，其次才是“语义最相似”
+
+      -----------------------------------
+      【输入与输出映射示例】
+
+      【输入 JSON 】:
+      {
+          "clinical_entity": "低密度影",
+          "presence": "present",
+          "location": "基底节区",
+          "distribution": "左侧",
+          "number": null,
+          "density": "低密度",
+          ...
+        }
+
+      【输出 JSON 格式】:
+      {
+          "clinical_entity": {
+            "raw": "低密度影",
+            "mapped_path": ["影像征象", "密度特征异常", "低密度影"],
+            "normalized_name": "低密度影"
+          },
+          "presence": {
+            "raw": "present",
+            "mapped_path": ["属性", "存在性", "present"],
+            "normalized_name": "present"
+          },
+          "location": {
+            "raw": "基底节区",
+            "mapped_path": ["解剖结构", "脑实质", "幕上", "深部灰质", "基底节区"],
+            "normalized_name": "基底节区"
+          },
+          "distribution": {
+            "raw": "左侧",
+            "mapped_path": ["属性", "空间分布", "侧性", "左侧"],
+            "normalized_name": "左侧"
+          },
+          "density": {
+            "raw": "低密度",
+            "mapped_path": ["属性", "密度", "低密度"],
+            "normalized_name": "低密度"
+          },
+          ...
+        }
+      -----------------------------------
+
+      【Task Execution】
+
+      纯 JSON 输出，严禁包含 markdown 标记 (如 ```json) 或任何解释性文字。
+      -----------------------------------
+      【输入内容】
+
+      已抽取实体 JSON：
+      {input_json}
+  diagnosis:
+    zh: |
+      你是医学影像知识图谱专家。你的任务是将给定的胸部+腹部+骨盆 CT 报告 Diagnosis（印象/诊断）部分已抽取的实体，映射到标准三棵树，并标准化属性，同时生成完整的 JSON 输出。
+
+      -----------------------------------
+      【标准树结构】
+
+      1. 解剖结构树 (Chest + Abdomen + Pelvis Anatomy Tree)
+      {anatomy_tree}
+
+      2. 疾病树 (Chest + Abdomen + Pelvis CT Diagnoses Tree)
+      {clinical_entity_tree}
+
+      3️. 属性树 (Attributes Tree)
+      {attributes_tree}
+
+      4. 影像征象树 (Imaging Findings Tree)
+      {imaging_findings_tree}
+
+      -----------------------------------
+      【映射与输出规则 (Core Rules)】
+
+      1. 结构化输出规范 (Schema)：
+        - 必须输出一个合法的 JSON 数组 (Array)。输入数组中的每一个实体对象，对应输出数组中的一个映射对象。
+        - 针对输入实体中每一个非 null 且非空的字段（如 clinical_entity, location, distribution, certainty 等），在输出对象中生成一个同名的 Key。
+        - 若输入中包含 `evidence_span`，它只是辅助理解的原文证据片段，仅用于消歧；不要对它做树映射，也不要在输出中生成 `evidence_span` 对象。
+        - 严禁输出输入数据中为 null 或缺失的字段（不要生成空对象）。
+
+      2. 字段映射对象结构：
+        每个字段的值必须是一个包含以下三个固定 Key 的 JSON Object：
+        - `raw`: 完整保留输入时的原词表述。
+        - `mapped_path`: 映射路径数组。数组的第一个元素必须是所属树的根节点名称（即 "解剖结构"、"疾病" 、"影像征象" 或 "属性"），后续元素为从根节点到最符合子节点的完整层级路径。
+          补充说明：映射路径不要求必须到达叶子节点；当某一中间节点已能充分表达该字段语义，若无法区分更具体子节点，应停在可被原文直接支持的上位节点。
+        - `normalized_name`: 标准化名称，必须严格等于 `mapped_path` 数组的最后一个元素。如果属于保留原值的情况（如具体尺寸），则与原值一致。
+
+      3. 强校验防幻觉规则 (CRITICAL Anti-Hallucination)：
+        - 禁止重复节点：路径走到合法节点即停止，绝不可重复拼写同一词汇。
+        - 禁止捏造变体节点：`mapped_path` 内的每一个元素必须一字不差地存在于给定标准树中。严禁模型编造不存在的分类或名称。
+
+      4. 字段-树强约束规则（Type Binding Constraint）：
+        为避免跨类型错误映射，每个字段只能映射到指定的树中，严禁跨树映射：
+        - `clinical_entity`：
+          只能映射到【疾病树】或【影像征象树】（根据 clinical_entity 的具体语义选择更合适的树）
+
+        - `location`：
+          只能映射到【解剖结构树】
+
+        - 所有属性字段（包括但不限于 `presence`, `distribution`, `density`, `number`, `size`, `shape` 等）：
+          只能映射到【属性树】
+
+        【强制执行规则】：
+        - 若某字段的语义无法在指定树中找到匹配节点：
+          → 首先检查"evidence_span"中是否有更明确的描述可以帮助找到匹配节点
+            - 如果 evidence_span 中有明确描述，则根据 evidence_span 的内容进行映射。
+            - 如果 evidence_span 中没有明确描述，或者根本没有 evidence_span，那么才允许输出 `mapped_path = ["Other"]`。
+          → 必须输出 `mapped_path = ["Other"]`，此时 `normalized_name` 输出 `"Other"`。
+          → 严禁为了匹配而跨树选择“看起来合理”的节点
+
+        【正确行为】：
+        - 优先保证“树类型正确”，其次才是“语义最相似”
+      -----------------------------------
+      【示例：输入与输出映射】
+
+      【输入 JSON 】:
+      {"clinical_entity": "腔梗", "presence": "present", "location": "基底节区", "distribution": "左侧", "certainty": "definite", "evidence_span": "左侧基底节区多发腔梗"}
+
+      【输出 JSON 格式】:
+      {
+          "clinical_entity": {
+            "raw": "腔梗",
+            "mapped_path": ["疾病", "血管性疾病", "缺血性改变", "腔隙性梗死"],
+            "normalized_name": "腔隙性梗死"
+          },
+          "presence": {
+            "raw": "present",
+            "mapped_path": ["属性", "存在性", "present"],
+            "normalized_name": "present"
+          },
+          "location": {
+            "raw": "基底节区",
+            "mapped_path": ["解剖结构", "脑实质", "幕上", "深部灰质", "基底节区"],
+            "normalized_name": "基底节区"
+          },
+          "distribution": {
+            "raw": "左侧",
+            "mapped_path": ["属性", "空间分布", "侧性", "左侧"],
+            "normalized_name": "左侧"
+          },
+          "certainty": {
+            "raw": "definite",
+            "mapped_path": ["属性", "确定性", "definite"],
+            "normalized_name": "definite"
+          }
+        }
+
+      -----------------------------------
+      【Task Execution】
+
+      纯 JSON 输出，严禁包含 markdown 标记 (如 ```json) 或任何解释性文字。
+      -----------------------------------
+      【输入内容】
+
+      已抽取实体 JSON：
+      {input_json}
