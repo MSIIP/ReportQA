@@ -1,6 +1,6 @@
 # ReportQA: QA-Based Radiology Report Evaluation
 
-[![arXiv](https://img.shields.io/badge/Arxiv-tbd-b31b1b.svg?logo=arXiv)](tbd) [![hf_space](https://img.shields.io/badge/🤗-%20Open%20In%20HF-blue.svg)](https://huggingface.co/datasets/shiym2000/ReportQA) [![License](https://img.shields.io/badge/License-Apache%202.0-yellow)](./LICENSE)
+[![arXiv](https://img.shields.io/badge/Arxiv-2606.15037-b31b1b.svg?logo=arXiv)](https://arxiv.org/abs/2606.15037) [![hf_space](https://img.shields.io/badge/🤗-%20Open%20In%20HF-blue.svg)](https://huggingface.co/datasets/shiym2000/ReportQA) [![License](https://img.shields.io/badge/License-Apache%202.0-yellow)](./LICENSE)
 
 ![overall](./assets/overall.png)
 
