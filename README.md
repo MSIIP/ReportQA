@@ -66,7 +66,12 @@ bash scripts/eval/eval_ctrg_brain_zh.sh
 ## :book: Citation
 
 ``` bibtex
-TBD
+@article{shi2026reportqa,
+  title={ReportQA: QA-Based Radiology Report Evaluation},
+  author={Shi, Yiming and Yang, Shaoshuai and Chen, Xi and Li, Haolin and Zhang, Hengyu and Jiang, Che and Wang, Kaiwen and Zhu, Xun and Xie, Dong and Wang, Fei and others},
+  journal={arXiv preprint arXiv:2606.15037},
+  year={2026}
+}
 ```
 
 ## :heart: Acknowledgements
